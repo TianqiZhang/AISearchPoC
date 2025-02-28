@@ -1,0 +1,173 @@
+# AI Search API with Server-Sent Events (SSE)
+
+## 1️⃣ **Background**
+The AI Search API enhances traditional search by integrating AI-generated responses. However, different queries require different handling:
+- Some queries are **not suitable** for AI (e.g., secrets, GUIDs).
+- Some queries have **cached AI answers** and can return instant results.
+- Some queries require **real-time AI generation** and must stream responses progressively.
+
+To simplify frontend implementation and ensure a smooth user experience, the API will **always use Server-Sent Events (SSE)**, even for instant responses. This ensures a single, consistent communication mechanism.
+
+---
+
+## 2️⃣ **Expected API Behavior**
+The API will handle queries in three main ways:
+
+### **🔹 Case 1: Query Not Suitable for AI** (e.g., contains secrets, GUIDs)
+- API responds **instantly** via SSE with a status message.
+- No AI-generated content is provided.
+- **SSE Response Example:**
+  ```
+  event: message
+  data: {"status": "no_ai", "message": "Query is unsuitable for AI processing"}
+  event: done
+  ```
+
+### **🔹 Case 2: AI Answer is Cached**
+- API checks cache and, if found, sends the full cached response immediately.
+- **SSE Response Example:**
+  ```
+  event: message
+  data: {"status": "cached", "ai_response": "Here is the cached AI answer.", "sources": ["https://docs.microsoft.com"]}
+  event: done
+  ```
+
+### **🔹 Case 3: AI Answer Needs Generation** (Streaming Response)
+- API starts streaming **partial AI-generated content** as it is produced.
+- **SSE Response Example:**
+  ```
+  event: message
+  data: {"status": "stream", "content": "AI-generated answer part 1"}
+  
+  event: message
+  data: {"status": "stream", "content": "AI-generated answer part 2"}
+  
+  event: done
+  ```
+
+---
+
+## 3️⃣ **API Endpoint Definition**
+### **🔹 Endpoint**
+```
+GET /api/ai-search?q={query}
+```
+### **🔹 Request Parameters**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `q` | string | User search query |
+
+### **🔹 SSE Response Structure**
+- **Always uses `text/event-stream`**
+- Events sent:
+  - `message`: Regular data updates
+  - `done`: Marks the end of the stream
+
+---
+
+## 4️⃣ **.NET Core Implementation**
+The API is implemented as a .NET Core controller that:
+1. **Checks query suitability** (PII detection, etc.)
+2. **Looks for cached AI responses**
+3. **Streams an AI-generated response** if needed
+
+### **🔹 Example Implementation** (ASP.NET Core)
+```csharp
+[ApiController]
+[Route("api/ai-search")]
+public class AISearchController : ControllerBase
+{
+    private readonly IAIService _aiService;
+    private readonly ICacheService _cacheService;
+    
+    public AISearchController(IAIService aiService, ICacheService cacheService)
+    {
+        _aiService = aiService;
+        _cacheService = cacheService;
+    }
+    
+    [HttpGet]
+    public async Task GetAIResponse([FromQuery] string q)
+    {
+        Response.ContentType = "text/event-stream";
+        var responseStream = Response.BodyWriter.AsStream();
+        await using var writer = new StreamWriter(responseStream);
+        
+        // 1. Check if query is unsuitable for AI
+        if (QueryFilter.IsSensitive(q))
+        {
+            await writer.WriteLineAsync("event: message");
+            await writer.WriteLineAsync("data: {\"status\": \"no_ai\", \"message\": \"Query is unsuitable for AI processing\"}");
+            await writer.WriteLineAsync("event: done");
+            await writer.FlushAsync();
+            return;
+        }
+        
+        // 2. Check cache
+        var cachedResponse = await _cacheService.GetCachedResponse(q);
+        if (cachedResponse != null)
+        {
+            await writer.WriteLineAsync("event: message");
+            await writer.WriteLineAsync($"data: {JsonSerializer.Serialize(new { status = "cached", ai_response = cachedResponse })}");
+            await writer.WriteLineAsync("event: done");
+            await writer.FlushAsync();
+            return;
+        }
+        
+        // 3. Stream AI-generated response
+        var aiStream = _aiService.GetAIResponseStream(q);
+        await foreach (var chunk in aiStream)
+        {
+            await writer.WriteLineAsync("event: message");
+            await writer.WriteLineAsync($"data: {JsonSerializer.Serialize(new { status = "stream", content = chunk })}");
+            await writer.FlushAsync();
+        }
+        
+        await writer.WriteLineAsync("event: done");
+        await writer.FlushAsync();
+    }
+}
+```
+
+---
+
+## 5️⃣ **Frontend Handling**
+The frontend should:
+- **Always use SSE** to listen for messages.
+- Handle `status` field to decide how to display results.
+- Stop listening when receiving `event: done`.
+
+### **🔹 JavaScript SSE Client Example**
+```javascript
+const eventSource = new EventSource("/api/ai-search?q=your_query");
+
+eventSource.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    if (data.status === "no_ai") {
+        hideAIPlaceholder();
+    } else if (data.status === "cached" || data.status === "stream") {
+        appendToAIResponse(data.content);
+    }
+};
+
+eventSource.addEventListener("done", () => {
+    eventSource.close();
+});
+```
+
+---
+
+## 6️⃣ **Advantages of Always Using SSE**
+✅ **Consistent API Behavior** – Frontend doesn’t need to switch between JSON & SSE.  
+✅ **Fast Immediate Responses** – Even non-streaming results are delivered quickly via SSE.  
+✅ **Seamless AI Streaming** – Real-time AI responses feel dynamic and smooth.  
+
+---
+
+## 7️⃣ **Next Steps**
+🔹 Implement the **cache service** & **AI service streaming** logic.  
+🔹 Optimize SSE **performance & scalability** (e.g., keep-alive, reconnection).  
+🔹 Refine frontend **loading states & animations** for AI responses.  
+
+🚀 This spec should be enough for your coding agent to build a working **PoC**! Let me know if you need adjustments. 😊
+
