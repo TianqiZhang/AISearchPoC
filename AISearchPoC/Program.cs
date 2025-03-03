@@ -10,6 +10,7 @@ builder.Services.AddControllers();
 builder.Services.AddSingleton<IAIService, MockAIService>();
 builder.Services.AddSingleton<ICacheService, MockCacheService>();
 builder.Services.AddSingleton<IQueryFilterService, MockQueryFilterService>();
+builder.Services.AddScoped<ISSEWriter, SSEWriter>();  // Register SSE Writer as scoped
 
 // Add OpenAPI/Swagger
 builder.Services.AddEndpointsApiExplorer();

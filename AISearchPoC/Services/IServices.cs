@@ -23,6 +23,22 @@ public interface IQueryFilterService
     Task<(bool IsSuitable, string? Message)> IsSuitableForAIAsync(string query, CancellationToken cancellationToken = default);
 }
 
+// Interface for Server-Sent Events (SSE) writer
+public interface ISSEWriter
+{
+    // Initializes the writer with an HttpResponse and returns a StreamWriter
+    StreamWriter Initialize(HttpResponse response);
+    
+    // Writes an event to the SSE stream
+    Task WriteEventAsync<T>(string eventType, T data, CancellationToken cancellationToken = default);
+    
+    // Writes a completion event to signal the end of the SSE stream
+    Task WriteDoneEventAsync(CancellationToken cancellationToken = default);
+    
+    // Writes an error event with the provided message
+    Task WriteErrorEventAsync(string errorMessage, CancellationToken cancellationToken = default);
+}
+
 // Model for cached responses
 public class CachedResponse
 {

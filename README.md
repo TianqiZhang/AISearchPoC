@@ -35,10 +35,11 @@ To ensure a consistent and smooth user experience, the API always uses Server-Se
 ## 🧩 Project Structure
 
 - **Controllers**: Contains the `AISearchController` which handles API requests and manages SSE responses
-- **Services**: Contains service interfaces and their mock implementations:
+- **Services**: Contains service interfaces and their implementations:
   - `IAIService`: Service for generating AI responses
   - `ICacheService`: Service for managing cached responses
   - `IQueryFilterService`: Service for filtering unsuitable queries
+  - `ISSEWriter`: Helper for formatting and writing Server-Sent Events
 
 ## 🔄 API Behavior
 
@@ -81,13 +82,20 @@ The application includes a simple HTML page to test the SSE API with example que
 
 ## 🧪 Implementation Details
 
-This project is a proof of concept and uses mock implementations:
+This project is a proof of concept and uses these implementations:
 
 - **MockAIService**: Simulates streaming AI responses with delays
 - **MockCacheService**: Provides pre-defined cached responses for certain queries
 - **MockQueryFilterService**: Checks for sensitive information patterns in queries
+- **SSEWriter**: Provides a clean abstraction for writing Server-Sent Events
 
-In a production environment, these would be replaced with:
+The SSEWriter abstraction allows for clean separation of concerns:
+- It's registered as a scoped service to maintain state during request processing
+- It handles all SSE-specific formatting and protocol details
+- It properly flushes the response stream after each event
+- It can be easily reused across controllers or projects
+
+In a production environment, the mock services would be replaced with:
 - Real AI model integration (e.g., OpenAI, Azure AI)
 - Proper caching solution (e.g., Redis)
 - More sophisticated query filtering and PII detection
